@@ -26,10 +26,13 @@ export function AdminDashboard() {
 
   useEffect(() => {
     async function fetchStats() {
-      const [usersRes, tripsRes, destRes] = await Promise.all([
+      // 1. Add listRes to the array of promises
+      const [usersRes, tripsRes, destRes, listRes] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('trips').select('*', { count: 'exact', head: true }),
         supabase.from('trips').select('destination'),
+        // 2. Add this query to fetch the actual user rows
+        supabase.from('profiles').select('id, email, name, avatar_url')
       ]);
 
       if (usersRes.count !== null) setTotalUsers(usersRes.count);
@@ -37,6 +40,11 @@ export function AdminDashboard() {
       if (destRes.data) {
         const unique = new Set(destRes.data.map((r) => r.destination));
         setActiveDestinations(unique.size);
+      }
+
+      // 3. Add this block to actually update the UI with the fetched users
+      if (listRes.data) {
+        setRegisteredUsers(listRes.data);
       }
     }
     fetchStats();

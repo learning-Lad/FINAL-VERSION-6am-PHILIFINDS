@@ -26,18 +26,13 @@ export function AdminDashboard() {
 
   useEffect(() => {
     async function fetchStats() {
-      const [tripsRes, destRes, usersListRes] = await Promise.all([
+      const [usersRes, tripsRes, destRes] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('trips').select('*', { count: 'exact', head: true }),
         supabase.from('trips').select('destination'),
-        supabase.rpc('get_all_profiles'),
       ]);
 
-      // Derive total users from RPC result (bypasses RLS)
-      if (usersListRes.data) {
-        setRegisteredUsers(usersListRes.data as RegisteredUser[]);
-        setTotalUsers(usersListRes.data.length);
-      }
-
+      if (usersRes.count !== null) setTotalUsers(usersRes.count);
       if (tripsRes.count !== null) setTotalTrips(tripsRes.count);
       if (destRes.data) {
         const unique = new Set(destRes.data.map((r) => r.destination));

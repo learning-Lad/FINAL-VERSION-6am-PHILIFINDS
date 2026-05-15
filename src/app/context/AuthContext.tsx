@@ -5,6 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
+  avatarUrl: string | null;
   isAdmin: boolean;
 }
 
@@ -14,34 +15,39 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   signup: (email: string, password: string, name: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
+  updateProfile: (fields: { name?: string; avatarUrl?: string }) => Promise<{ ok: boolean; error?: string }>;
   isAuthenticated: boolean;
   isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Added proper error handling to prevent silent query freezes
 async function loadProfile(userId: string, email: string): Promise<User> {
   try {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id,email,name,is_admin')
+      .select('id,email,name,avatar_url,is_admin')
       .eq('id', userId)
       .single();
 
     if (error) {
-      console.warn("Profile fetch error (this is safe to ignore for new users):", error.message);
+      console.warn('Profile fetch error (safe to ignore for new users):', error.message);
     }
 
     if (data) {
-      return { id: data.id, email: data.email, name: data.name, isAdmin: data.is_admin };
+      return {
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        avatarUrl: data.avatar_url ?? null,
+        isAdmin: data.is_admin,
+      };
     }
   } catch (err) {
-    console.error("Critical error in loadProfile:", err);
+    console.error('Critical error in loadProfile:', err);
   }
 
-  // Safe fallback if the profile doesn't exist yet
-  return { id: userId, email, name: email.split('@')[0], isAdmin: false };
+  return { id: userId, email, name: email.split('@')[0], avatarUrl: null, isAdmin: false };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -49,7 +55,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Check for an existing session when the app loads
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         setUser(await loadProfile(session.user.id, session.user.email!));
@@ -57,11 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    // 2. ONLY listen for logouts to avoid race conditions with the login function
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
+      if (event === 'SIGNED_OUT') setUser(null);
     });
 
     return () => sub.subscription.unsubscribe();
@@ -69,15 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
     if (error) return { ok: false, error: error.message };
-
-    // 3. Profile fetching is now handled exclusively here!
     if (data.session?.user) {
-      const profile = await loadProfile(data.session.user.id, data.session.user.email!);
-      setUser(profile);
+      setUser(await loadProfile(data.session.user.id, data.session.user.email!));
     }
-
     return { ok: true };
   };
 
@@ -87,21 +84,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: { data: { name } },
     });
-    
     if (error) return { ok: false, error: error.message };
-    
-    // Fetch profile here as well for immediate login after signup
     if (data.session?.user) {
-      const profile = await loadProfile(data.session.user.id, data.session.user.email!);
-      setUser(profile);
+      setUser(await loadProfile(data.session.user.id, data.session.user.email!));
     }
-
     return { ok: true };
   };
 
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+  };
+
+  // Update name and/or avatar in the profiles table, then refresh local state
+  const updateProfile = async (fields: { name?: string; avatarUrl?: string }) => {
+    if (!user) return { ok: false, error: 'Not logged in' };
+
+    const updates: Record<string, string> = { updated_at: new Date().toISOString() };
+    if (fields.name !== undefined) updates.name = fields.name;
+    if (fields.avatarUrl !== undefined) updates.avatar_url = fields.avatarUrl;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', user.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    // Optimistically update local user state so UI reflects immediately
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            name: fields.name ?? prev.name,
+            avatarUrl: fields.avatarUrl ?? prev.avatarUrl,
+          }
+        : prev
+    );
+
+    return { ok: true };
   };
 
   return (
@@ -112,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         signup,
         logout,
+        updateProfile,
         isAuthenticated: !!user,
         isAdmin: user?.isAdmin ?? false,
       }}

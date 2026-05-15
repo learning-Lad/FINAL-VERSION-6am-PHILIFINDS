@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent } from '../components/ui/card';
 import { useAuth } from '../context/AuthContext';
 import { useTrip } from '../context/TripContext';
 import { useEmergency } from '../context/EmergencyContext';
-// Added CheckCircle to the imports here!
+import { DeleteConfirmationModal } from '../components/ui/DeleteConfirmationModal';
+import { ProfileSettingsModal } from '../components/ui/ProfileSettingsModal';
 import { Plane, Plus, Calendar, Trash2, Phone, AlertCircle, MapPin, Users, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -13,21 +15,58 @@ export function UserDashboard() {
   const { trips, deleteTrip } = useTrip();
   const { contacts } = useEmergency();
 
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    tripId: null as string | null,
+    tripName: '',
+    tripDate: '',
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Profile settings modal
+  const [profileOpen, setProfileOpen] = useState(false);
+
   const handleLogout = () => {
     logout();
     navigate('/');
     toast.success('Logged out successfully');
   };
 
-  const handleDeleteTrip = async (tripId: string, e: React.MouseEvent) => {
+  const handleDeleteClick = (trip: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Delete this trip?')) return;
+    setDeleteModal({
+      isOpen: true,
+      tripId: trip.id,
+      tripName: trip.destination,
+      tripDate: new Date(trip.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.tripId) return;
+    setIsDeleting(true);
     try {
-      await deleteTrip(tripId);
-      toast.success('Trip deleted');
+      await deleteTrip(deleteModal.tripId);
+      setDeleteModal({ isOpen: false, tripId: null, tripName: '', tripDate: '' });
+      toast.success('Trip deleted successfully', {
+        description: `${deleteModal.tripName} has been removed from your trips.`,
+      });
     } catch (err: any) {
-      toast.error(err.message ?? 'Failed to delete trip');
+      toast.error('Failed to delete trip', {
+        description: err?.message ?? 'Please try again later',
+      });
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteModal({ isOpen: false, tripId: null, tripName: '', tripDate: '' });
   };
 
   const stats = [
@@ -42,12 +81,27 @@ export function UserDashboard() {
       <header className="px-8 py-5 flex justify-between items-center bg-white/70 backdrop-blur border-b border-[#e8e4d6]">
         <div className="flex items-center gap-2 text-[#2d5840]">
           <Plane className="w-6 h-6" />
-          <span className="font-bold text-2xl" style={{ fontFamily: 'Georgia, serif' }}>PhiliFinds</span>
+          <span className="font-bold text-2xl" style={{ fontFamily: 'Georgia, serif' }}>
+            PhiliFinds
+          </span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#2d5840] text-white flex items-center justify-center text-sm font-semibold">
-            {user?.name?.[0]?.toUpperCase() ?? 'U'}
-          </div>
+          {/* Avatar — click to open profile settings */}
+          <button
+            onClick={() => setProfileOpen(true)}
+            className="relative group w-9 h-9 rounded-full overflow-hidden bg-[#2d5840] text-white flex items-center justify-center text-sm font-semibold ring-2 ring-transparent hover:ring-[#5fa476] transition-all"
+            title="Edit profile"
+          >
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>{user?.name?.[0]?.toUpperCase() ?? 'U'}</span>
+            )}
+          </button>
           <button
             onClick={handleLogout}
             className="px-4 py-2 rounded-full text-sm border border-[#2d5840]/30 text-[#2d5840] hover:bg-[#2d5840]/5"
@@ -62,12 +116,38 @@ export function UserDashboard() {
         <p className="text-[#2d5840] italic mb-2" style={{ fontFamily: 'Georgia, serif' }}>
           Welcome back to your journey
         </p>
-        <h1 className="text-5xl font-bold text-[#1f3d2b] leading-tight" style={{ fontFamily: 'Georgia, serif' }}>
-          Hello, {user?.name}.
-        </h1>
-        <p className="mt-3 text-gray-600 max-w-xl">
-          Where will the road take you next? Plan a new adventure or revisit your saved trips below.
-        </p>
+        <div className="flex items-center gap-5">
+          {/* Larger avatar in hero */}
+          <button
+            onClick={() => setProfileOpen(true)}
+            className="relative group shrink-0 w-16 h-16 rounded-full overflow-hidden bg-[#2d5840] text-white flex items-center justify-center text-2xl font-bold shadow-md ring-2 ring-transparent hover:ring-[#5fa476] transition-all"
+            title="Edit profile"
+          >
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>{user?.name?.[0]?.toUpperCase() ?? 'U'}</span>
+            )}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-medium">
+              Edit
+            </div>
+          </button>
+          <div>
+            <h1
+              className="text-5xl font-bold text-[#1f3d2b] leading-tight"
+              style={{ fontFamily: 'Georgia, serif' }}
+            >
+              Hello, {user?.name}.
+            </h1>
+            <p className="mt-2 text-gray-600 max-w-xl">
+              Where will the road take you next? Plan a new adventure or revisit your saved trips below.
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Stats */}
@@ -90,7 +170,10 @@ export function UserDashboard() {
       {/* My Trips */}
       <section className="max-w-6xl mx-auto px-8 mb-12">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-[#1f3d2b]" style={{ fontFamily: 'Georgia, serif' }}>
+          <h2
+            className="text-2xl font-bold text-[#1f3d2b]"
+            style={{ fontFamily: 'Georgia, serif' }}
+          >
             My Trips
           </h2>
           <button
@@ -135,19 +218,17 @@ export function UserDashboard() {
                       <div className="text-xs text-gray-500 mt-1">
                         {new Date(trip.createdAt).toLocaleDateString()}
                       </div>
-                      
-                      {/* NEW COMPLETED BADGE */}
                       {trip.isCompleted && (
                         <div className="mt-2 inline-flex items-center gap-1 bg-[#e8efe6] text-[#2d5840] text-[11px] font-bold px-2.5 py-1 rounded-full">
                           <CheckCircle className="w-3.5 h-3.5" />
                           Completed
                         </div>
                       )}
-                      
                     </div>
                     <button
-                      onClick={(e) => handleDeleteTrip(trip.id, e)}
-                      className="text-gray-400 hover:text-red-500"
+                      onClick={(e) => handleDeleteClick(trip, e)}
+                      className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg p-2 transition"
+                      title="Delete trip"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -159,7 +240,10 @@ export function UserDashboard() {
                   </div>
                   <div className="pt-4 flex flex-wrap gap-1.5">
                     {trip.activities.slice(0, 3).map((a) => (
-                      <span key={a} className="text-[11px] bg-[#e8efe6] text-[#1f3d2b] px-2 py-1 rounded-full">
+                      <span
+                        key={a}
+                        className="text-[11px] bg-[#e8efe6] text-[#1f3d2b] px-2 py-1 rounded-full"
+                      >
                         {a}
                       </span>
                     ))}
@@ -176,11 +260,14 @@ export function UserDashboard() {
         )}
       </section>
 
-      {/* Emergency Hotlines (read-only) */}
+      {/* Emergency Hotlines */}
       <section className="max-w-6xl mx-auto px-8 pb-16">
         <div className="mb-5 flex items-center gap-2">
           <AlertCircle className="w-5 h-5 text-red-600" />
-          <h2 className="text-2xl font-bold text-[#1f3d2b]" style={{ fontFamily: 'Georgia, serif' }}>
+          <h2
+            className="text-2xl font-bold text-[#1f3d2b]"
+            style={{ fontFamily: 'Georgia, serif' }}
+          >
             Emergency Hotlines
           </h2>
         </div>
@@ -199,12 +286,25 @@ export function UserDashboard() {
                 >
                   <Phone className="w-4 h-4" /> {c.number}
                 </a>
-                {c.description && <p className="text-xs text-gray-600 mt-2">{c.description}</p>}
+                {c.description && (
+                  <p className="text-xs text-gray-600 mt-2">{c.description}</p>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       </section>
+
+      {/* Modals */}
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        tripName={deleteModal.tripName}
+        tripDate={deleteModal.tripDate}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        isLoading={isDeleting}
+      />
+      <ProfileSettingsModal isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }
@@ -213,7 +313,9 @@ function Row({ label, value, capitalize }: { label: string; value: string; capit
   return (
     <div className="flex justify-between">
       <span className="text-gray-500">{label}:</span>
-      <span className={`font-medium text-[#1f3d2b] ${capitalize ? 'capitalize' : ''}`}>{value}</span>
+      <span className={`font-medium text-[#1f3d2b] ${capitalize ? 'capitalize' : ''}`}>
+        {value}
+      </span>
     </div>
   );
 }

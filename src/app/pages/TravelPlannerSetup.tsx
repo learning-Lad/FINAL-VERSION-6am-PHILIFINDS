@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useTrip } from '../context/TripContext';
 import { toast } from 'sonner';
-import { Plane, MapPin, Users, Wallet, Calendar, Sparkles, ArrowLeft, Loader2 } from 'lucide-react';
+import { Plane, MapPin, Users, Wallet, Calendar, Sparkles, ArrowLeft, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const PHILIPPINE_CITIES = [
   'Manila', 'Cebu', 'Boracay', 'Palawan', 'Baguio', 'Davao', 'Siargao',
@@ -14,8 +14,8 @@ const PHILIPPINE_CITIES = [
 
 const BUDGET_OPTIONS = [
   { value: 'budget',    label: 'Budget-friendly', description: '₱1,000 – ₱3,000/day' },
-  { value: 'mid-range', label: 'Mid-range',        description: '₱3,000 – ₱7,000/day' },
-  { value: 'luxury',    label: 'Luxury',            description: '₱7,000+/day' },
+  { value: 'mid-range', label: 'Mid-range',       description: '₱3,000 – ₱7,000/day' },
+  { value: 'luxury',    label: 'Luxury',          description: '₱7,000+/day' },
 ];
 
 const ACTIVITY_TYPES = [
@@ -48,7 +48,237 @@ function Section({ icon: Icon, title, description, children }: {
   );
 }
 
-function GeneratingScreen({ destination }: { destination: string }) {
+function CalendarPicker({ startDate, endDate, onStartChange, onEndChange }: any) {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectingEnd, setSelectingEnd] = useState(false);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const isPastDate = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    date.setHours(0, 0, 0, 0);
+    return date < today;
+  };
+
+  const handleDateClick = (day: number) => {
+    if (isPastDate(day)) {
+      toast.error('Please select a future date');
+      return;
+    }
+
+    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    
+    if (!selectingEnd) {
+      onStartChange(newDate);
+      if (endDate && newDate > endDate) {
+        onEndChange(null);
+      }
+      setSelectingEnd(true);
+    } else {
+      if (newDate < startDate) {
+        onEndChange(startDate);
+        onStartChange(newDate);
+        setSelectingEnd(true);
+      } else {
+        onEndChange(newDate);
+        setSelectingEnd(false);
+        setShowPicker(false);
+      }
+    }
+  };
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  };
+
+  const isDateInRange = (day: number) => {
+    if (!startDate) return false;
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    if (!endDate) return false;
+    return date >= startDate && date <= endDate;
+  };
+
+  const isDateStartOrEnd = (day: number) => {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    return (startDate && date.toDateString() === startDate.toDateString()) ||
+           (endDate && date.toDateString() === endDate.toDateString());
+  };
+
+  const formatDateDisplay = (date: Date) => {
+    if (!date) return '';
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${m}/${d}/${y}`;
+  };
+
+  const calculateDuration = () => {
+    if (!startDate || !endDate) return 0;
+    const diffTime = endDate.getTime() - startDate.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  };
+
+  const daysArray = [];
+  const firstDay = getFirstDayOfMonth(currentMonth);
+  const daysInMonth = getDaysInMonth(currentMonth);
+
+  for (let i = 0; i < firstDay; i++) {
+    daysArray.push(null);
+  }
+  for (let i = 1; i <= daysInMonth; i++) {
+    daysArray.push(i);
+  }
+
+  const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className="text-xs text-gray-600 font-medium block mb-2">Start Date</label>
+          <button
+            type="button"
+            onClick={() => {
+              setShowPicker(!showPicker);
+              setSelectingEnd(false);
+            }}
+            className="w-full px-4 py-3 rounded-full border border-gray-200 text-left text-sm hover:border-[#5fa476] transition"
+          >
+            {startDate ? formatDateDisplay(startDate) : 'Select start date'}
+          </button>
+        </div>
+        <div className="flex-1">
+          <label className="text-xs text-gray-600 font-medium block mb-2">End Date</label>
+          <button
+            type="button"
+            onClick={() => {
+              setShowPicker(true);
+              setSelectingEnd(true);
+            }}
+            className="w-full px-4 py-3 rounded-full border border-gray-200 text-left text-sm hover:border-[#5fa476] transition"
+          >
+            {endDate ? formatDateDisplay(endDate) : 'Select end date'}
+          </button>
+        </div>
+      </div>
+
+      {showPicker && (
+        <div className="border border-gray-200 rounded-2xl p-6 bg-gray-50">
+          <div className="flex items-center justify-between mb-6">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="p-2 hover:bg-white rounded-lg transition"
+            >
+              <ChevronLeft className="w-4 h-4 text-[#2d5840]" />
+            </button>
+            <h4 className="font-semibold text-[#1f3d2b]" style={{ fontFamily: 'Georgia, serif' }}>
+              {monthName}
+            </h4>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="p-2 hover:bg-white rounded-lg transition"
+            >
+              <ChevronRight className="w-4 h-4 text-[#2d5840]" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 mb-4">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className="text-center text-xs font-semibold text-gray-600 py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-2">
+            {daysArray.map((day, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => day && handleDateClick(day)}
+                disabled={!day || (day && isPastDate(day))}
+                className={`aspect-square rounded-lg text-sm font-medium transition ${
+                  !day
+                    ? 'text-transparent'
+                    : day && isPastDate(day)
+                    ? 'text-gray-300 bg-gray-100 cursor-not-allowed'
+                    : isDateStartOrEnd(day)
+                    ? 'bg-[#2d5840] text-white shadow-md'
+                    : isDateInRange(day)
+                    ? 'bg-[#d4e8df] text-[#1f3d2b]'
+                    : 'text-[#1f3d2b] hover:bg-gray-200 cursor-pointer'
+                }`}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-xs text-gray-600">
+              {selectingEnd ? 'Select end date' : 'Select start date'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowPicker(false)}
+              className="text-xs text-[#2d5840] hover:underline"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {startDate && endDate && (
+        <div className="bg-[#e8efe6] border border-[#5fa476]/30 rounded-xl p-3">
+          <p className="text-sm text-[#1f3d2b] font-medium">
+            {calculateDuration()} {calculateDuration() === 1 ? 'day' : 'days'}
+          </p>
+          <p className="text-xs text-gray-600 mt-1">
+            {formatDateDisplay(startDate)} to {formatDateDisplay(endDate)}
+          </p>
+          {(() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const startDateAtMidnight = new Date(startDate);
+            startDateAtMidnight.setHours(0, 0, 0, 0);
+            const isSameDay = startDateAtMidnight.getTime() === today.getTime();
+            
+            if (isSameDay) {
+              const currentHour = new Date().getHours();
+              const currentMinute = new Date().getMinutes();
+              const timeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`;
+              return (
+                <p className="text-xs text-[#2d5840] mt-2 bg-white/50 rounded px-2 py-1">
+                  ⏰ Trip starts today - schedules will only show activities from {timeStr} onwards
+                </p>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GeneratingScreen({ origin, destination }: { origin: string, destination: string }) {
   const [lineIndex, setLineIndex] = useState(0);
 
   useEffect(() => {
@@ -65,7 +295,7 @@ function GeneratingScreen({ destination }: { destination: string }) {
       </div>
       <p className="text-[#2d5840] italic mb-2" style={{ fontFamily: 'Georgia, serif' }}>Powered by nimnim AI</p>
       <h1 className="text-3xl font-bold text-[#1f3d2b] mb-3" style={{ fontFamily: 'Georgia, serif' }}>
-        Crafting your {destination} trip
+        Crafting your trip from {origin} to {destination}
       </h1>
       <p className="text-gray-500 text-sm mb-8 h-5 transition-all duration-500">
         {LOADING_LINES[lineIndex]}
@@ -93,10 +323,12 @@ export function TravelPlannerSetup() {
   const navigate = useNavigate();
   const { createTrip, generateItinerary } = useTrip();
 
+  const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [budget, setBudget] = useState<'budget' | 'mid-range' | 'luxury'>('mid-range');
   const [groupSize, setGroupSize] = useState(2);
-  const [duration, setDuration] = useState(3);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [activities, setActivities] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -106,13 +338,37 @@ export function TravelPlannerSetup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!origin) return toast.error('Please select a starting city');
     if (!destination) return toast.error('Please select a destination');
+    if (!startDate || !endDate) return toast.error('Please select trip dates');
     if (activities.length === 0) return toast.error('Please select at least one activity type');
+
+    const duration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Check if start date is today and calculate remaining hours
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDateAtMidnight = new Date(startDate);
+    startDateAtMidnight.setHours(0, 0, 0, 0);
+    
+    const isSameDay = startDateAtMidnight.getTime() === today.getTime();
+    const currentTime = isSameDay ? new Date() : null;
 
     setSubmitting(true);
     let tripId: string;
     try {
-      tripId = await createTrip({ destination, budget, groupSize, duration, activities });
+      tripId = await createTrip({
+        origin,
+        destination,
+        budget,
+        groupSize,
+        duration,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        activities,
+        currentTime: currentTime ? currentTime.toISOString() : null, 
+        isSameDay 
+      });
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to create trip');
       setSubmitting(false);
@@ -130,7 +386,7 @@ export function TravelPlannerSetup() {
     }
   };
 
-  if (generating) return <GeneratingScreen destination={destination} />;
+  if (generating) return <GeneratingScreen origin={origin} destination={destination} />;
 
   return (
     <div className="min-h-screen bg-[#f6f5ef]">
@@ -159,19 +415,36 @@ export function TravelPlannerSetup() {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Destination */}
-          <Section icon={MapPin} title="Destination" description="Where would you like to explore?">
-            <Select value={destination} onValueChange={setDestination}>
-              <SelectTrigger className="rounded-full border-gray-200">
-                <SelectValue placeholder="Select a city" />
-              </SelectTrigger>
-              <SelectContent>
-                {PHILIPPINE_CITIES.map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Section>
+          
+          <div className="grid md:grid-cols-2 gap-5">
+            {/* Origin */}
+            <Section icon={MapPin} title="From" description="Where are you starting?">
+              <Select value={origin} onValueChange={setOrigin}>
+                <SelectTrigger className="rounded-full border-gray-200">
+                  <SelectValue placeholder="Select origin city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHILIPPINE_CITIES.map((c) => (
+                    <SelectItem key={`from-${c}`} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Section>
+
+            {/* Destination */}
+            <Section icon={MapPin} title="To" description="Where would you like to explore?">
+              <Select value={destination} onValueChange={setDestination}>
+                <SelectTrigger className="rounded-full border-gray-200">
+                  <SelectValue placeholder="Select destination city" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHILIPPINE_CITIES.map((c) => (
+                    <SelectItem key={`to-${c}`} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Section>
+          </div>
 
           {/* Budget */}
           <Section icon={Wallet} title="Budget" description="What's your budget per day?">
@@ -194,7 +467,7 @@ export function TravelPlannerSetup() {
             </div>
           </Section>
 
-          {/* Group size + Duration */}
+          {/* Group size + Trip Dates */}
           <div className="grid md:grid-cols-2 gap-5">
             <Section icon={Users} title="Group Size" description="How many people?">
               <Input
@@ -207,13 +480,13 @@ export function TravelPlannerSetup() {
               </p>
             </Section>
 
-            <Section icon={Calendar} title="Duration" description="How many days?">
-              <Input
-                type="number" min={1} max={30}
-                value={duration} onChange={(e) => setDuration(Number(e.target.value))}
-                className="rounded-full border-gray-200"
+            <Section icon={Calendar} title="Trip Dates" description="When would you like to travel?">
+              <CalendarPicker
+                startDate={startDate}
+                endDate={endDate}
+                onStartChange={setStartDate}
+                onEndChange={setEndDate}
               />
-              <p className="text-xs text-gray-500 mt-2">{duration} {duration === 1 ? 'day' : 'days'}</p>
             </Section>
           </div>
 

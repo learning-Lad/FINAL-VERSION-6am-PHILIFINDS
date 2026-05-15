@@ -73,10 +73,7 @@ interface PromptInput {
   startDate?: string; // ISO string e.g. "2025-05-20T00:00:00.000Z"
 }
 
-/**
- * Compute the real calendar dates for a trip starting at `startDate`.
- * Returns an array like ["2026-05-20", "2026-05-21", "2026-05-22"].
- */
+
 function buildDayDates(startDate: string | undefined, duration: number): string[] {
   const base = startDate ? new Date(startDate) : new Date();
   // Use noon to stay safely away from DST / UTC-offset midnight edge cases
@@ -93,22 +90,7 @@ function buildDayDates(startDate: string | undefined, duration: number): string[
   });
 }
 
-/**
- * Fallback transport fee estimator used when the AI returns 0 or a suspiciously
- * low number for an inter-city trip.
- *
- * Rates (round-trip per person in PHP, mid-point of typical budget airline range):
- *   Cebu ↔ Manila        ₱5,000
- *   Cebu ↔ Palawan       ₱6,500
- *   Cebu ↔ Siargao       ₱5,500
- *   Cebu ↔ Boracay       ₱7,000
- *   Manila ↔ Palawan     ₱6,000
- *   Manila ↔ Siargao     ₱6,000
- *   Manila ↔ Bohol       ₱5,500
- *   Manila ↔ Davao       ₱5,000
- *   any other inter-city ₱4,500
- *   same city (local)    ₱400/person/day
- */
+
 function estimateTransportFee(
   origin: string,
   destination: string,
@@ -194,7 +176,7 @@ ${transportNote}
 
 REQUIREMENTS
 - Use REAL place names, REAL latitude/longitude, and REAL approximate prices in PHP for ${i.destination}.
-- 3–4 activities per day spread across morning / midday / afternoon / evening.
+- 5–10 activities per day spread across morning / midday / afternoon / evening.
 - Costs are in PHP per person for activities.
 - Times in 24-hour "HH:MM" format.
 - The "date" field in each day can be left as "YYYY-MM-DD" — it will be corrected server-side.
